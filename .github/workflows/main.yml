@@ -50,31 +50,25 @@ jobs:
           name: client-build
           path: ./dist
 
-      - name: Install sshpass
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y sshpass
+      - name: Install SSH Key
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
+          known_hosts: unnecessary_due_to_flag
+          if_key_exists: replace
 
       - name: Deploy client via rsync
         run: |
-          for i in {1..3}; do
-            if sshpass -p "${{ secrets.DO_SSH_PASSWORD }}" rsync -avz --delete --timeout=300 --partial -e "ssh -p ${{ secrets.DO_SSH_PORT }} -o StrictHostKeyChecking=no -o ServerAliveInterval=15 -o ServerAliveCountMax=5 -o ConnectTimeout=30" ./dist/ ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SERVER_HOST }}:${{ secrets.DO_CLIENT_DIR }}; then
-              echo "rsync succeeded"
-              break
-            else
-              if [ $i -lt 3 ]; then
-                echo "rsync attempt $i failed, retrying in 5 seconds..."
-                sleep 5
-              else
-                echo "rsync failed after 3 attempts"
-                exit 1
-              fi
-            fi
-          done
+          rsync -avz --delete --timeout=600 \
+            -e "ssh -p ${{ secrets.DO_SSH_PORT }} \
+                -o StrictHostKeyChecking=no \
+                -o ServerAliveInterval=15 \
+                -o ServerAliveCountMax=10" \
+            ./dist/ ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SERVER_HOST }}:${{ secrets.DO_CLIENT_DIR }}
 
       - name: Restart pm2 service
         run: |
-          sshpass -p "${{ secrets.DO_SSH_PASSWORD }}" ssh -p ${{ secrets.DO_SSH_PORT }} -o StrictHostKeyChecking=no ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SERVER_HOST }} 'sudo pm2 restart quickvisa-app'
+          ssh -p ${{ secrets.DO_SSH_PORT }} -o StrictHostKeyChecking=no ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SERVER_HOST }} 'sudo pm2 restart quickvisa-app'
 
   test_and_deploy_api:
     name: Test & Deploy API
@@ -106,23 +100,8 @@ jobs:
       - name: Send API archive to server
         run: |
           # Ensure remote directory exists
-          sshpass -p "${{ secrets.DO_SSH_PASSWORD }}" ssh -p ${{ secrets.DO_SSH_PORT }} -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=5 ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SERVER_HOST }} "mkdir -p ${{ secrets.DO_API_DIR }}"
-
-          # Transfer with retry logic
-          for i in {1..3}; do
-            if sshpass -p "${{ secrets.DO_SSH_PASSWORD }}" scp -C -P ${{ secrets.DO_SSH_PORT }} -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=5 quickvisa-api/api-deploy.tar.gz ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SERVER_HOST }}:${{ secrets.DO_API_DIR }}/; then
-              echo "SCP succeeded"
-              break
-            else
-              if [ $i -lt 3 ]; then
-                echo "SCP attempt $i failed, retrying in 5 seconds..."
-                sleep 5
-              else
-                echo "SCP failed after 3 attempts"
-                exit 1
-              fi
-            fi
-          done
+          sshpass -p "${{ secrets.DO_SSH_PASSWORD }}" ssh -p ${{ secrets.DO_SSH_PORT }} -o StrictHostKeyChecking=no ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SERVER_HOST }} "mkdir -p ${{ secrets.DO_API_DIR }}"
+          sshpass -p "${{ secrets.DO_SSH_PASSWORD }}" scp -P ${{ secrets.DO_SSH_PORT }} -o StrictHostKeyChecking=no quickvisa-api/api-deploy.tar.gz ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SERVER_HOST }}:${{ secrets.DO_API_DIR }}/
 
       - name: Remote deploy API
         run: |
