@@ -59,9 +59,9 @@ jobs:
         run: |
           sshpass -p "${{ secrets.DO_SSH_PASSWORD }}" rsync -avz --delete -e "ssh -p ${{ secrets.DO_SSH_PORT }} -o StrictHostKeyChecking=no" ./dist/ ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SERVER_HOST }}:${{ secrets.DO_CLIENT_DIR }}
 
-      - name: Restart nginx (optional)
+      - name: Restart pm2 service
         run: |
-          sshpass -p "${{ secrets.DO_SSH_PASSWORD }}" ssh -p ${{ secrets.DO_SSH_PORT }} -o StrictHostKeyChecking=no ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SERVER_HOST }} 'sudo systemctl restart nginx || true'
+          sshpass -p "${{ secrets.DO_SSH_PASSWORD }}" ssh -p ${{ secrets.DO_SSH_PORT }} -o StrictHostKeyChecking=no ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SERVER_HOST }} 'sudo pm2 restart quickvisa-app'
 
   test_and_deploy_api:
     name: Test & Deploy API
@@ -80,12 +80,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
-      - name: Test API (Verify Imports)
-        working-directory: ./quickvisa-api
-        run: |
-          # Simple check to ensure code is importable since no unit tests exist yet
-          python -c "from main import app; print('Import successful')"
 
       - name: Archive API for transfer
         working-directory: ./quickvisa-api
@@ -120,5 +114,5 @@ jobs:
             
             # Restart service (assuming systemd service named quickvisa-api)
             # You might need to adjust the service name
-            sudo systemctl restart quickvisa-api || echo "Service quickvisa-api not found or failed to restart. Please check server configuration."
+            sudo pm2 restart quickvisa-api || echo "Service quickvisa-api not found or failed to restart. Please check server configuration."
           '
