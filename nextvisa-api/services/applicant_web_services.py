@@ -165,7 +165,7 @@ def process_re_schedule(re_schedule_id: int):
             time.sleep(config.sleep_time)
 
             # Get available dates via requests with Selenium cookies
-            dates = __get_dates(driver, appointment_url, days_url)
+            dates = __get_dates(driver, appointment_url, days_url, re_schedule_id)
             if len(dates) == 0:
                 logger.info(f"No dates available for re-schedule {re_schedule_id}")
                 re_schedule_services.update_re_schedule(
@@ -195,7 +195,7 @@ def process_re_schedule(re_schedule_id: int):
                 continue
 
             # Get time for chosen a date
-            available_times = __get_times(driver, appointment_url, times_url_tmpl % chosen_date)
+            available_times = __get_times(driver, appointment_url, times_url_tmpl % chosen_date, re_schedule_id)
             if not available_times:
                 logger.info(f"No times available for date {chosen_date}")
                 re_schedule_services.update_re_schedule(
@@ -324,7 +324,7 @@ def __do_login(driver, login_url, email: str, password: str):
     time.sleep(3)
 
     # Wait for login success indicator
-    Wait(driver, 60).until(
+    Wait(driver, 7).until(
         EC.presence_of_element_located((By.CSS_SELECTOR, ".button.primary.small"))
     )
 
@@ -332,7 +332,7 @@ def __copy_cookies(driver, session):
     for c in driver.get_cookies():
         session.cookies.set(c['name'], c['value'], domain=c.get('domain'), path=c.get('path', '/'))
 
-def __get_dates(driver, appointment_url: str, date_url: str):
+def __get_dates(driver, appointment_url: str, date_url: str, re_schedule_id: int):
     session = requests.Session()
     __copy_cookies(driver, session)
 
@@ -355,7 +355,7 @@ def __get_dates(driver, appointment_url: str, date_url: str):
         logger.warning("The request did not return JSON")
         return r.text
 
-def __get_times(driver, appointment_url: str, time_url: str):
+def __get_times(driver, appointment_url: str, time_url: str, re_schedule_id: int):
     session = requests.Session()
     __copy_cookies(driver, session)
 
